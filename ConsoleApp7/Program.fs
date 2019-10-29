@@ -4,7 +4,7 @@
 let findMax f a b = 
     let calcJump a b = (abs a + abs b) / 10000.0
     let rec doFind f cur limit jump =
-        if cur > limit then -1.0
+        if cur > limit then -999999999999.0
         else
             let next = doFind f (cur + jump) limit jump
             if f cur > next then f cur
@@ -12,41 +12,51 @@ let findMax f a b =
     let jump = calcJump a b
     doFind f a b jump
 
-let func1 x = 4.0 * (x * x * x) - 2.0 * (x * x) + 9.0 * x - 2.0
-let func2 x = -9.0 * (x * x) + 2.0 * x + 8.0
-
-let max1 = findMax func1 -10.0 10.0
-let max2 = findMax func2 -2.0 4.0
+let func5 x = 5.0 * x
 
 let calcArea (max:float) a b = max * (b - a)
 
-let area a b = findMax func2 a b |> calcArea a b
-
 let rand = System.Random()
 
-let calcIntegral (f:float -> float) (area:float) num a b  =
+let calcIntegral (area:float) (f:float -> float) num a b max  =
     let underGraph (f:float -> float) (x, y) = f x > y
     let integral (B:float) = (B / num) * area
-    let rec count f a b (num:float) c B =
+    let rec count c B =
         match c with
-        | _ when c < num -> if underGraph f (float (rand.Next(a, b)), float (rand.Next(a, b)))  then count f a b num (c + 1.0) (B + 1)
-                                                                                    else count f a b num (c + 1.0) B
+        | _ when c < num -> if underGraph f (float (rand.Next(a, b)), float (rand.Next(0, max)))  then count (c + 1.0) (B + 1)
+                                                                                                  else count (c + 1.0) B
         | _ -> B
-    count f a b num 0.0 0 |> float |> integral 
+    count 0.0 0 |> float |> integral 
 
 let calcGraphIntegral f a b =
-    let area = findMax f a b |> calcArea a b
-    calcIntegral f area 1000000.0 (int a) (int b)
+    let max = findMax f a b
+    let area = calcArea max a b
+    calcIntegral area f 1000000.0 (int a) (int b) (int max)
 
-
-
-calcIntegral func2 1.0 1000000.0 (int (-2.0)) (int (4.0))
-
-calcGraphIntegral func2 -90.0 100.0
+calcGraphIntegral func5 3.0 30.0
 
 // QUESTION 1 B
 
+let calcIntegralMulti (area:float) (f:float -> float) num a b max threads =
+    let underGraph (f:float -> float) (x, y) = f x > y
+    let integral (B:float) = (B / num) * area
+    let rec count c B =
+        match c with
+        | _ when c < (num / threads) -> if underGraph f (float (rand.Next(a, b)), float (rand.Next(0, max)))  then count (c + 1.0) (B + 1)
+                                                                                                  else count (c + 1.0) B
+        | _ -> B
+    let multiCount = 
+        [for x in 1..(int threads) do yield async {return count 0.0 0}] 
+        |> Async.Parallel
+        |> Async.RunSynchronously
+    multiCount |> Array.sum |> float |> integral 
 
+let calcGraphIntegralMulti f a b =
+    let max = findMax f a b
+    let area = calcArea max a b 
+    calcIntegralMulti area f 1000000.0 (int a) (int b) (int max) 4.0
+
+calcGraphIntegralMulti func5 3.0 30.0
 
 // QUESTION 2 A
 
@@ -165,8 +175,6 @@ let absTree n = BoolExpression(n, GreaterThan, Literal(0.0), n, UnaryExpression(
 let maxValueTree x y = DualExpression(DualExpression(DualExpression(x, Plus, y), Plus, absTree(DualExpression(x, Minus, y))), Divide, Literal(2.0))
 
 maxValueTree (Literal 23.1) (Literal -25.9) |> evaluateTree 
-
-
 
 // QUESTION 3 E
 
